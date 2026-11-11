@@ -1,0 +1,44 @@
+name: Release
+# Publishes to PyPI with Trusted Publishing (OIDC): no API token is stored anywhere and
+# PyPI records a build attestation (provenance) tying each file to this repository.
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update && sudo apt-get install -y nftables iptables
+      - run: pip install -e '.[dev,server]'
+      - name: Tag must match package version
+        run: test "v$(python -c 'import app; print(app.__version__)')" = "${GITHUB_REF_NAME}"
+      - run: ruff check . && pytest -q
+      - name: Real kernel enforcement in network namespaces
+        run: sudo -E env "PATH=$PATH" pytest -q -m integration tests/integration -rs
+  build:
+    needs: verify
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install build twine && python -m build && twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with: { name: dist, path: dist/ }
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: pypi
+    permissions:
+      id-token: write   # required for Trusted Publishing and attestations
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: dist/ }
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true

@@ -27,6 +27,10 @@ Linux firewall and IDS/IPS platform in Python 3.12 (nftables first, iptables com
 - The iptables backend is tested against fake runners and rendered text only, not a real `iptables-restore`.
 - `install.sh` was exercised with `--dry-run`, the units with `systemd-analyze verify`; a real install on each distribution has not been performed. Debian 12 and RHEL 9 ship Python < 3.12, so install Python 3.12+ first.
 
+## Install
+    pip install averqon            # CLI, API and daemon (Python 3.12+)
+The dashboard and systemd units are not in the wheel; for a full host install use `scripts/install.sh` from this repository (see docs/DEPLOYMENT.md).
+
 ## Quick start (development)
     python3 -m venv .venv && . .venv/bin/activate
     pip install -e '.[dev,server]'

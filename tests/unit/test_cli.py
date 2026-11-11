@@ -6,7 +6,7 @@ r = CliRunner()
 
 
 def test_version():
-    assert r.invoke(app, ["version"]).stdout.strip() == "0.1.0"
+    assert r.invoke(app, ["version"]).stdout.strip() == "0.1.1"
 
 
 def test_validate_json(tmp_path):
