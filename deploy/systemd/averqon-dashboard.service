@@ -1,0 +1,34 @@
+[Unit]
+Description=Averqon web dashboard (Next.js)
+After=averqon-api.service
+Wants=averqon-api.service
+
+[Service]
+Type=simple
+User=averqon
+Group=averqon
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+Environment=AVERQON_API_URL=http://127.0.0.1:8443
+WorkingDirectory=/opt/averqon/dashboard
+ExecStart=/usr/bin/env node /opt/averqon/dashboard/server.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

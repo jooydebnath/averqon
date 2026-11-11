@@ -1,0 +1,38 @@
+[Unit]
+Description=Averqon detection daemon (log monitoring, IDS/IPS, alerts; unprivileged)
+After=averqon-executor.service
+Requires=averqon-executor.service
+
+[Service]
+Type=simple
+User=averqon
+Group=averqon
+# adm: /var/log/auth.log on Debian-family; systemd-journal: journalctl access. Read-only access to logs.
+SupplementaryGroups=adm systemd-journal
+EnvironmentFile=/etc/averqon/averqon.env
+ExecStart=/opt/averqon/venv/bin/averqon serve daemon --config /etc/averqon/averqon.yaml
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ReadWritePaths=/var/lib/averqon
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,65 @@
+# Install as /etc/averqon/averqon.yaml (root:averqon, mode 0640).
+# SECRETS DO NOT BELONG HERE. Put them in /etc/averqon/averqon.env (mode 0600):
+#   AVERQON_SECRET_KEY=<48+ random chars>
+#   AVERQON_NOTIFICATIONS__TELEGRAM__BOT_TOKEN=...
+#   AVERQON_NOTIFICATIONS__EMAIL__PASSWORD=...
+#   AVERQON_NOTIFICATIONS__WEBHOOK__SECRET=...
+environment: production
+log_level: INFO
+log_json: false
+
+database:
+  url: sqlite:///var/lib/averqon/averqon.db      # production at scale: postgresql+psycopg://averqon@localhost/averqon
+
+firewall:
+  backend: auto                 # auto | nftables | iptables
+  table_name: averqon           # the ONLY nftables table Averqon touches
+  default_input: drop
+  default_output: accept
+  default_forward: drop
+  management_ports: [22]        # always reachable (SSH). Never remove without another way in.
+  admin_ips: []                 # always whitelisted: never banned, rate-limited or blocklisted
+  backup_dir: /var/lib/averqon/backups
+  rollback_timeout_seconds: 60
+  # Kernel-level, per-source-IP protections (reduce, do not eliminate, flood impact):
+  syn_rate: null                # e.g. "200/second"
+  syn_burst: 400
+  conn_limit_per_ip: null       # e.g. 200 concurrent tracked connections
+  new_conn_rate_per_ip: null    # e.g. "50/second"
+  log_drops: false              # needed for port-scan detection
+  blocklist_dir: /var/lib/averqon/blocklists
+  threat_feeds: {}              # name -> https URL, e.g. {spamhaus_drop: "https://www.spamhaus.org/drop/drop.txt"}
+  blocklist_refresh_hours: 12
+  geo_block_countries: []       # ISO codes; needs <cc>.zone files in geo_zone_dir
+  geo_zone_dir: /var/lib/averqon/geo
+
+ids:
+  enabled: true
+  jails: null                   # null = built-in defaults (sshd enabled; nginx/apache disabled)
+  autoban: true
+  autoban_min_severity: medium
+  ignore_networks: []
+  escalation_multiplier: 2      # repeat offenders: bantime * 2^offences, capped by max_bantime
+  max_bantime: 2592000
+  permanent_after: 0            # offences before a permanent ban (0 = never)
+  portscan_enabled: true
+  portscan_ports: 15
+  portscan_window: 60
+  portscan_bantime: 21600
+
+notifications:
+  min_severity: high
+  dedupe_seconds: 300
+  telegram: {enabled: false, chat_id: ""}
+  email: {enabled: false, host: smtp.example.org, port: 587, security: starttls, username: "", from_addr: "", to_addrs: []}
+  webhook: {enabled: false, url: "", allow_private: false}
+
+api:
+  host: 127.0.0.1               # keep on loopback; publish via a TLS reverse proxy
+  port: 8443
+  executor_socket: /run/averqon/executor.sock
+  allowed_uids: []              # uid of the 'averqon' service user (install.sh fills this in)
+  rate_limit_per_minute: 120
+  login_rate_per_minute: 10
+  token_ttl_minutes: 30
+  cors_origins: []

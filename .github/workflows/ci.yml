@@ -1,0 +1,36 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update && sudo apt-get install -y nftables iptables
+      - run: pip install -e '.[dev,server]'
+      - run: ruff check .
+      - run: bandit -q -r app cli -ll
+      - run: pytest -q --cov=app --cov=cli
+  enforcement:
+    # Real kernel enforcement inside throwaway network namespaces (never touches the runner's firewall).
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update && sudo apt-get install -y nftables iptables
+      - run: pip install -e '.[dev,server]'
+      - run: sudo -E env "PATH=$PATH" pytest -q -m integration tests/integration -rs
+  dashboard:
+    runs-on: ubuntu-24.04
+    defaults: { run: { working-directory: dashboard } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: dashboard/package-lock.json }
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: npm run build

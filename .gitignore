@@ -1,0 +1,13 @@
+__pycache__/
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+*.db
+dashboard/node_modules/
+dashboard/.next/
+dashboard/tsconfig.tsbuildinfo
+dashboard/next-env.d.ts
