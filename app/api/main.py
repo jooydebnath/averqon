@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import __version__
 from app.api.deps import AppContext, global_limit
+from app.api.limits import BodyLimitMiddleware
 from app.api.ratelimit import RateLimiter
 from app.api.routes import auth, firewall, system
 from app.core.config import Settings
@@ -67,6 +68,7 @@ def create_app(settings: Settings, ctx: AppContext | None = None) -> FastAPI:
     app = FastAPI(title="Averqon", version=__version__, docs_url=None if settings.environment == "production" else "/docs",
                   redoc_url=None, openapi_url=None if settings.environment == "production" else "/openapi.json")
     app.state.ctx = ctx or build_context(settings)
+    app.add_middleware(BodyLimitMiddleware, max_bytes=settings.api.max_body_bytes)
     if settings.api.cors_origins:
         app.add_middleware(CORSMiddleware, allow_origins=settings.api.cors_origins, allow_credentials=False,
                            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
@@ -105,8 +107,8 @@ def create_app(settings: Settings, ctx: AppContext | None = None) -> FastAPI:
 
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        resp = _err(exc.status_code, {401: "unauthorized", 403: "forbidden", 404: "not_found", 429: "rate_limited"}
-                    .get(exc.status_code, "error"), str(exc.detail), request)
+        codes = {401: "unauthorized", 403: "forbidden", 404: "not_found", 413: "payload_too_large", 429: "rate_limited"}
+        resp = _err(exc.status_code, codes.get(exc.status_code, "error"), str(exc.detail), request)
         for k, val in (exc.headers or {}).items():
             resp.headers[k] = val
         return resp

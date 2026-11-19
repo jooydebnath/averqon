@@ -140,6 +140,23 @@ def test_body_size_limit_and_cors(tmp_path, fake_nft):
     assert "access-control-allow-origin" not in evil.headers
 
 
+def _chunked(payload: bytes, size: int = 512):
+    """Generator body -> httpx sends Transfer-Encoding: chunked with no Content-Length."""
+    for i in range(0, len(payload), size):
+        yield payload[i:i + size]
+
+
+def test_body_size_limit_enforced_for_chunked_uploads(tmp_path, fake_nft):
+    c, _ = make_api(tmp_path, fake_nft, max_body_bytes=2048)
+    h = {**auth(c, "operator"), "content-type": "application/json"}
+    big = b'{"name":"x","action":"accept","comment":"' + b"a" * 5000 + b'"}'
+    r = c.post("/api/v1/firewall/rules", content=_chunked(big), headers=h)
+    assert r.status_code == 413
+    assert r.json()["error"]["code"] == "payload_too_large"
+    small = b'{"name":"x","action":"accept","protocol":"tcp","dport":["80"]}'
+    assert c.post("/api/v1/firewall/rules", content=_chunked(small, 16), headers=h).status_code == 201
+
+
 def test_backend_and_unexpected_failures_do_not_leak(tmp_path, fake_nft):
     c, ctx = make_api(tmp_path, fake_nft)
     h = auth(c, "operator")
