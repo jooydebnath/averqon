@@ -140,6 +140,35 @@ def test_body_size_limit_and_cors(tmp_path, fake_nft):
     assert "access-control-allow-origin" not in evil.headers
 
 
+def _bad_login(client, ip_header=None, username="ghost"):
+    h = {"X-Forwarded-For": ip_header} if ip_header else {}
+    return client.post("/api/v1/auth/login", json={"username": username, "password": "wrong-password-1"}, headers=h)
+
+
+def test_forwarded_ip_used_for_audit_and_rate_limit_only_from_trusted_proxy(tmp_path, fake_nft):
+    from fastapi.testclient import TestClient
+
+    from app.database.models import AuditLogEntry
+    c, ctx = make_api(tmp_path, fake_nft, trusted_proxies=["10.0.0.1"], login_rate_per_minute=2)
+    proxy = TestClient(c.app, client=("10.0.0.1", 5000), raise_server_exceptions=False)
+    direct = TestClient(c.app, client=("198.51.100.77", 5000), raise_server_exceptions=False)
+
+    # Behind the trusted proxy each real client gets its own login-ip bucket (2/min each).
+    for i in range(2):
+        assert _bad_login(proxy, "203.0.113.1", f"user{i}").status_code == 401
+    assert _bad_login(proxy, "203.0.113.1", "user2").status_code == 429  # same client, third attempt
+    assert _bad_login(proxy, "203.0.113.2", "user3").status_code == 401  # a different client is unaffected
+    with session_scope(ctx.sessions) as s:
+        ips = {row.source_ip for row in s.query(AuditLogEntry).filter_by(action="auth.login")}
+    assert {"203.0.113.1", "203.0.113.2"} <= ips and "10.0.0.1" not in ips
+
+    # A direct (untrusted) client cannot spoof the header to dodge limits or poison the audit log.
+    _bad_login(direct, "1.1.1.1", "user4")
+    with session_scope(ctx.sessions) as s:
+        assert s.query(AuditLogEntry).filter_by(source_ip="1.1.1.1").count() == 0
+        assert s.query(AuditLogEntry).filter_by(source_ip="198.51.100.77").count() >= 1
+
+
 def test_backend_and_unexpected_failures_do_not_leak(tmp_path, fake_nft):
     c, ctx = make_api(tmp_path, fake_nft)
     h = auth(c, "operator")

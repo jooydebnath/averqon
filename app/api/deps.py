@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Annotated, Any
 
 import jwt
@@ -18,11 +19,13 @@ from app.audit.service import record_audit
 from app.auth.rbac import has_permission
 from app.auth.security import decode_token
 from app.core.config import Settings
+from app.core.errors import ValidationFailed
 from app.database.base import session_scope
 from app.database.models import RevokedToken, UserRow
 from app.ids.engine import IDSEngine
+from app.utils.validation import IPNetwork, normalize_ip, parse_ip, parse_network
 
-log = logging.getLogger(__name__)
+log =logging.getLogger(__name__)
 _bearer = HTTPBearer(auto_error=False)
 
 
@@ -51,9 +54,42 @@ def ctx_of(request: Request) -> AppContext:
 Ctx = Annotated[AppContext, Depends(ctx_of)]
 
 
+@lru_cache(maxsize=8)
+def _proxy_networks(entries: tuple[str, ...]) -> tuple[IPNetwork, ...]:
+    return tuple(parse_network(e) for e in entries)
+
+
+def _trusted(ip: str, nets: tuple[IPNetwork, ...]) -> bool:
+    try:
+        addr = parse_ip(normalize_ip(ip))
+    except ValidationFailed:
+        return False
+    return any(addr.version == n.version and addr in n for n in nets)
+
+
 def client_ip(request: Request) -> str:
-    # X-Forwarded-For is deliberately ignored: it is attacker-controlled unless a trusted proxy sets it.
-    return request.client.host if request.client else "unknown"
+    """The caller's address for rate limiting and audit.
+
+    X-Forwarded-For is attacker-controlled, so it is only honoured when the TCP peer is one of
+    ``api.trusted_proxies``; then the rightmost entry that is not itself a trusted proxy wins
+    (entries to its left are client-supplied and can be forged).
+    """
+    peer = request.client.host if request.client else "unknown"
+    proxies = request.app.state.ctx.settings.api.trusted_proxies
+    if not proxies or peer == "unknown":
+        return peer
+    nets = _proxy_networks(tuple(proxies))
+    if not _trusted(peer, nets):
+        return peer
+    for hop in reversed((request.headers.get("x-forwarded-for") or "").split(",")):
+        hop = hop.strip()
+        try:
+            normalized = normalize_ip(hop)
+        except ValidationFailed:
+            return peer  # malformed header: do not guess
+        if not _trusted(normalized, nets):
+            return normalized
+    return peer
 
 
 def audit(ctx: AppContext, request: Request, actor: str, action: str, target: str = "", outcome: str = "success",

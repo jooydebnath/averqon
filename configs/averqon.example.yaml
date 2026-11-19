@@ -63,3 +63,7 @@ api:
   login_rate_per_minute: 10
   token_ttl_minutes: 30
   cors_origins: []
+  # Addresses/CIDRs of reverse proxies (e.g. the dashboard host) whose X-Forwarded-For is trusted for
+  # per-client rate limits and audit source_ip. Empty = header ignored. Only list proxies that
+  # overwrite/append X-Forwarded-For themselves; never list 0.0.0.0/0.
+  trusted_proxies: []            # e.g. ["127.0.0.1"] when the dashboard runs on the same host

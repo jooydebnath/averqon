@@ -16,7 +16,8 @@ import yaml
 from pydantic import BaseModel, Field, SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.core.errors import ConfigError
+from app.core.errors import ConfigError, ValidationFailed
+from app.utils.validation import parse_network
 
 DEFAULT_CONFIG_PATH = Path("/etc/averqon/averqon.yaml")
 
@@ -132,6 +133,18 @@ class ApiSettings(BaseModel):
     tls_keyfile: Path | None = None
     executor_socket: str | None = None  # None -> in-process facade (development only)
     allowed_uids: list[int] = []  # uids allowed to talk to the executor
+    # Reverse proxies (IPs/CIDRs) whose X-Forwarded-For header is trusted. Empty -> header ignored.
+    trusted_proxies: list[str] = []
+
+    @field_validator("trusted_proxies")
+    @classmethod
+    def _proxies(cls, v: list[str]) -> list[str]:
+        for entry in v:
+            try:
+                parse_network(entry, min_prefix_v4=1, min_prefix_v6=1)  # never trust "everyone"
+            except ValidationFailed as exc:
+                raise ValueError(f"invalid trusted proxy {entry!r}: {exc.detail}") from exc
+        return v
 
 
 class Settings(BaseSettings):

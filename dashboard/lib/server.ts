@@ -17,6 +17,15 @@ export function csrfOk(req: NextRequest): boolean {
   return req.headers.get("x-averqon-csrf") === "1";
 }
 
+/**
+ * Pass the client address chain set by the reverse proxy in front of the dashboard on to the API, so
+ * per-client rate limits and audit logs see the real client (the API only trusts it from `api.trusted_proxies`).
+ */
+export function forwardedFor(req: NextRequest): Record<string, string> {
+  const xff = req.headers.get("x-forwarded-for");
+  return xff ? { "x-forwarded-for": xff } : {};
+}
+
 export function forbidden(): Response {
   return Response.json({ error: { code: "csrf", message: "Cross-site request rejected" } }, { status: 403 });
 }

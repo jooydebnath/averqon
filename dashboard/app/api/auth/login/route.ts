@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { API_URL, COOKIE, csrfOk, forbidden } from "@/lib/server";
+import { API_URL, COOKIE, csrfOk, forbidden, forwardedFor } from "@/lib/server";
 
 export async function POST(req: NextRequest) {
   if (!csrfOk(req)) return forbidden();
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   try {
     upstream = await fetch(`${API_URL}/api/v1/auth/login`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...forwardedFor(req) },
       body: JSON.stringify(body),
       cache: "no-store",
     });

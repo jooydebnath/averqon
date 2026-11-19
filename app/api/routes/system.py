@@ -84,7 +84,7 @@ def settings(ctx: Ctx, _: Annotated[CurrentUser, Depends(require("settings:read"
     return {"environment": s.environment, "log_level": s.log_level,
             "firewall": s.firewall.model_dump(mode="json", exclude={"backup_dir", "blocklist_dir", "geo_zone_dir"}),
             "ids": s.ids.model_dump(mode="json"),
-            "api": s.api.model_dump(mode="json", exclude={"executor_socket", "allowed_uids"}),
+            "api": s.api.model_dump(mode="json", exclude={"executor_socket", "allowed_uids", "trusted_proxies"}),
             "note": "Read-only: edit the configuration file and restart to change settings."}
 
 

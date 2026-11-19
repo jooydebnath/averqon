@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { API_URL, COOKIE, csrfOk, forbidden } from "@/lib/server";
+import { API_URL, COOKIE, csrfOk, forbidden, forwardedFor } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 const PASS_HEADERS = ["content-type", "retry-after", "x-request-id"];
@@ -12,7 +12,7 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   }
   const token = req.cookies.get(COOKIE)?.value;
   const url = `${API_URL}/api/v1/${path.map(encodeURIComponent).join("/")}${req.nextUrl.search}`;
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...forwardedFor(req) };
   if (token) headers.authorization = `Bearer ${token}`;
   const ct = req.headers.get("content-type");
   if (ct) headers["content-type"] = ct;

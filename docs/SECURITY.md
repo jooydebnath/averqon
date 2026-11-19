@@ -23,7 +23,7 @@ The executor socket is `0660 root:averqon`, additionally checks the peer uid (`S
 - Lockout after 5 failures (15 min), per-IP and per-username login rate limits, global and write rate limits (per user).
 - RBAC matrix is tested for every endpoint × role. Denials are audited.
 - The dashboard keeps the token in an `HttpOnly; SameSite=Strict; Secure` cookie (never in JavaScript). State-changing requests also need same-origin `Origin` and the custom `x-averqon-csrf` header. The API itself only accepts `Authorization: Bearer`, so it is not CSRF-exposed.
-- `X-Forwarded-For` is ignored for rate limiting/audit (spoofable); terminate TLS and rate-limit upstream if you need real client IPs.
+- `X-Forwarded-For` is ignored by default (spoofable). Behind a reverse proxy or the dashboard, every request then appears to come from the proxy, so per-IP limits are shared and the audit `source_ip` is the proxy. Set `api.trusted_proxies` to the proxy address(es)/CIDR(s): the header is then honoured only when the TCP peer is one of them, and the rightmost entry that is not a trusted proxy is used (left-hand entries are client-supplied). `0.0.0.0/0` is rejected. The proxy in front must overwrite or append `X-Forwarded-For` itself; if the dashboard is reachable directly, clients could forge the header it forwards.
 
 ## Secrets
 Never in the repo or YAML. `AVERQON_SECRET_KEY` and channel credentials live in `/etc/averqon/averqon.env` (0600 root). Config files readable by group/other are rejected. Logs redact `password/token/secret/api_key` values. Webhook errors never include URLs (bot tokens live in Telegram URLs).
