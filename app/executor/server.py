@@ -58,7 +58,13 @@ class ExecutorServer:
             if uid not in self.allowed:
                 log.warning("rejected executor connection from uid %s", uid)
                 return
-            line = await asyncio.wait_for(reader.readline(), 10)
+            try:
+                line = await asyncio.wait_for(reader.readline(), 10)
+            except ValueError:
+                # StreamReader raises ValueError when a line exceeds the stream limit (MAX_MESSAGE).
+                writer.write(encode({"ok": False, "error": {"code": "validation_error", "message": "message too large"}}))
+                await writer.drain()
+                return
             if len(line) > MAX_MESSAGE or not line:
                 return
             try:

@@ -81,6 +81,24 @@ async def test_bad_params_and_garbage(server):
     w.close()
 
 
+async def test_oversized_message_gets_error_reply_not_crash(server, monkeypatch, caplog):
+    from app.executor.protocol import MAX_MESSAGE
+    # SO_PEERCRED is Linux-only; stub it so this test also runs on other platforms.
+    monkeypatch.setattr("app.executor.server.peer_uid", lambda _sock: os.getuid())
+    srv, c = server
+    r, w = await asyncio.open_unix_connection(str(srv.path), limit=4 * MAX_MESSAGE)
+    w.write(b"x" * (MAX_MESSAGE + 10) + b"\n")
+    try:
+        await w.drain()
+    except ConnectionError:  # server may reply and close before we finish sending
+        pass
+    reply = await asyncio.wait_for(r.readline(), 5)
+    w.close()
+    assert b"validation_error" in reply and b"too large" in reply
+    assert "Unhandled exception" not in caplog.text
+    assert "installed" in await call(c, "status")  # server still healthy
+
+
 async def test_unauthorised_uid_rejected(facade, tmp_path):
     srv = ExecutorServer(facade, tmp_path / "s.sock", {os.getuid() + 1})
     await srv.start()
