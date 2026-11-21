@@ -4,7 +4,7 @@
 
 **Detection is heuristic.** Port-scan detection only sees packets the firewall *drops and logs* (rate-limited to 10/s), within a 60 s window; slow scans are missed. Brute-force detection depends on log formats; unusual sshd/web log formats need custom filters. Attackers behind shared NAT can cause collateral bans; use `ignore_networks`/whitelist and escalation limits.
 
-**Verification gaps.** Kernel enforcement and the iptables backend are not exercised by tests on a live kernel (see README). Distribution installs were not performed on every supported OS.
+**Verification gaps.** Kernel enforcement is tested at packet level in CI and in `tests/integration` (nftables and nft-based iptables inside network namespaces), but not on a production install, and not with `iptables-legacy`. Throughput, behaviour under memory pressure and distribution installs were not exercised on real hardware.
 
 **Platform.** Python ≥ 3.12 is required. The iptables backend has no ipset support: blocklists above 2000 entries are rejected (use nftables), and ban expiry is enforced by the daemon, not the kernel. IPv4-mapped IPv6 addresses are normalized to IPv4 in log-derived events, but manual bans of `::ffff:a.b.c.d` are stored as IPv6.
 
