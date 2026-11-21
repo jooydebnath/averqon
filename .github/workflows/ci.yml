@@ -17,13 +17,15 @@ jobs:
   enforcement:
     # Real kernel enforcement inside throwaway network namespaces (never touches the runner's firewall).
     runs-on: ubuntu-24.04
+    env:
+      AVERQON_REQUIRE_KERNEL_TESTS: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - run: sudo apt-get update && sudo apt-get install -y nftables iptables
+      - run: sudo apt-get update && sudo apt-get install -y nftables iptables iproute2
       - run: pip install -e '.[dev,server]'
-      - run: sudo -E env "PATH=$PATH" pytest -q -m integration tests/integration -rs
+      - run: sudo -E env "PATH=$PATH" AVERQON_REQUIRE_KERNEL_TESTS=1 pytest -q -m integration tests/integration -rs
   dashboard:
     runs-on: ubuntu-24.04
     defaults: { run: { working-directory: dashboard } }

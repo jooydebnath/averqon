@@ -2,7 +2,7 @@
 
 Linux firewall and IDS/IPS platform in Python 3.12 (nftables first, iptables compatibility), with a REST API, CLI and Next.js dashboard. It owns its own policy model, detection engine and ban lifecycle; it does not wrap UFW or Fail2ban.
 
-> **Read [docs/LIMITATIONS.md](docs/LIMITATIONS.md) before deploying.** Averqon reduces attack surface and automates responses; it is not DDoS protection, and kernel enforcement has not yet been verified on a live host (see "Verification status").
+> **Read [docs/LIMITATIONS.md](docs/LIMITATIONS.md) before deploying.** Averqon reduces attack surface and automates responses; it is not DDoS protection, and packet enforcement has been verified in network namespaces and CI, not yet on a production install (see "Verification status").
 
 ## What is implemented
 | Area | Status |
@@ -21,11 +21,10 @@ Linux firewall and IDS/IPS platform in Python 3.12 (nftables first, iptables com
 | Packaging: hardened systemd units, install/upgrade/uninstall/emergency scripts, Alembic migrations | implemented |
 
 ## Verification status
-- **408 automated tests** (unit, API, security regression, fuzz) pass; coverage 95%; `ruff` clean; `bandit` has no medium+ findings.
-- Rendered nftables rulesets are parsed by the **real `nft` binary** (syntax) in tests. Apply/rollback logic is tested against an in-memory fake `nft`.
-- **Not yet verified on a live kernel:** actual packet enforcement. `tests/integration/test_netns_enforcement.py` does this inside a throwaway network namespace but needs root; it was skipped on the development machine. Run it before trusting this in production: `sudo -E pytest tests/integration`.
-- The iptables backend is tested against fake runners and rendered text only, not a real `iptables-restore`.
-- `install.sh` was exercised with `--dry-run`, the units with `systemd-analyze verify`; a real install on each distribution has not been performed. Debian 12 and RHEL 9 ship Python < 3.12, so install Python 3.12+ first.
+- **424 automated tests**: 408 unit/API/security/fuzz tests run anywhere; 16 kernel-enforcement tests need root and run in CI's `enforcement` job. Coverage 95%; `ruff` clean; `bandit` has no medium+ findings.
+- **Packet-level enforcement is verified in CI.** `tests/integration` builds two throwaway network namespaces joined by a veth pair, applies each backend through its real binaries (`nft -f -`, `iptables-restore`), and asserts that packets are *dropped, rejected, banned, whitelisted, rate-limited and un-banned* — including kernel-side TTL expiry of bans and that apply/teardown never touch foreign tables, chains or the host `INPUT` policy. Run it yourself with `sudo -E pytest -m integration tests/integration` or `./scripts/test-kernel.sh` (Docker, no host changes). `AVERQON_REQUIRE_KERNEL_TESTS=1` turns a silent skip into a failure.
+- Rendered nftables rulesets are also parsed by the **real `nft` binary** (syntax) in the unit tests; apply/rollback logic is tested against an in-memory fake `nft`.
+- Not verified: throughput/performance on real hardware, `iptables-legacy` (CI uses the nft-based iptables), and a real install on every distribution. `scripts/install.sh` was exercised with `--dry-run` and the units with `systemd-analyze verify`. Debian 12 and RHEL 9 ship Python < 3.12, so install 3.12+ first.
 
 ## Install
     pip install averqon            # CLI, API and daemon (Python 3.12+)
@@ -34,7 +33,8 @@ The dashboard and systemd units are not in the wheel; for a full host install us
 ## Quick start (development)
     python3 -m venv .venv && . .venv/bin/activate
     pip install -e '.[dev,server]'
-    pytest && ruff check .
+    pytest && ruff check .          # 408 tests that need no privileges
+    ./scripts/test-kernel.sh        # 16 real-kernel packet tests in a throwaway container
     export AVERQON_SECRET_KEY=$(python -c 'import secrets;print(secrets.token_urlsafe(48))')
     AVERQON_PASSWORD='a-long-password' averqon user create admin --role admin
     averqon serve api              # http://127.0.0.1:8443/docs (development only)
